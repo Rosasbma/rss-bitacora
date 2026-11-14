@@ -1,0 +1,65 @@
+:root{--g:linear-gradient(135deg,#ff5f8f,#ffb15c,#5cd6ff,#9a7bff);--glass:rgba(26,28,35,.6);--ln:rgba(255,255,255,.11);--red:#ff5f6d;--blu:#5cb6ff;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
+body{-webkit-user-select:none;user-select:none}
+input,select,textarea,button{font:inherit;color:inherit}
+#bgl{position:fixed;inset:0;z-index:0;background:radial-gradient(80% 60% at 30% 20%,#1a1d27,#050506)}
+#bgl video,#bgl img{width:100%;height:100%;object-fit:cover;display:block}
+#dim{position:fixed;inset:0;z-index:1;background:#000;pointer-events:none}
+#app{position:fixed;inset:0;z-index:5;opacity:0;transition:opacity .6s}
+#app.on{opacity:1}
+header{position:absolute;top:0;left:0;right:0;height:calc(64px + var(--sat));padding:var(--sat) 20px 0 76px;display:flex;align-items:center;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.1));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--ln)}
+header h2{font-weight:600;letter-spacing:.18em;font-size:13px;text-transform:uppercase}
+header:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--g);opacity:.8}
+#v{position:absolute;inset:calc(64px + var(--sat)) 0 0 0;overflow-y:auto;padding:16px 16px calc(110px + var(--sab));-webkit-overflow-scrolling:touch}
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + var(--sab));z-index:6;display:flex;gap:4px;padding:7px;border-radius:30px;background:var(--glass);border:1px solid var(--ln);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 10px 40px rgba(0,0,0,.5)}
+nav button{background:none;border:0;width:54px;height:48px;border-radius:22px;font-size:10px;opacity:.55;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:.25s}
+nav button b{font-size:19px;font-weight:400}
+nav button.on{opacity:1;background:rgba(255,255,255,.12)}
+nav .pl{background:var(--g);opacity:1;color:#111;font-size:26px;width:58px;margin:0 3px;box-shadow:0 4px 18px rgba(255,120,150,.45)}
+.gl{background:var(--glass);border:1px solid var(--ln);border-radius:22px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:16px;margin-bottom:12px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.gl h3{font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:12px;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.chip{border:1px solid var(--ln);background:rgba(255,255,255,.06);border-radius:20px;padding:7px 14px;font-size:12px;cursor:pointer}
+.chip.on{background:var(--g);color:#111;border-color:transparent;font-weight:600}
+.kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.kp div{border-radius:20px;padding:14px;background:var(--glass);border:1px solid var(--ln);backdrop-filter:blur(18px);animation:up .6s both}
+.kp div:nth-child(2){animation-delay:.08s}.kp div:nth-child(3){animation-delay:.16s}.kp div:nth-child(4){animation-delay:.24s}
+.kp b{display:block;font-size:26px;font-weight:300;margin-top:4px}
+.kp span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+.ch{display:flex;align-items:flex-end;gap:3px;height:120px}
+.ch i{flex:1;min-width:3px;border-radius:5px 5px 2px 2px;background:var(--g);transform-origin:bottom;animation:gr .7s both;cursor:pointer;opacity:.85}
+.ch i:active{opacity:1;filter:brightness(1.4)}
+.mu{opacity:.5;font-size:12px}
+#cap{font-size:12px;margin-top:10px;min-height:16px;opacity:.8}
+.br{position:relative;display:flex;align-items:center;gap:8px;height:34px;margin-bottom:6px;cursor:pointer}
+.br b{position:absolute;left:0;top:0;bottom:0;border-radius:12px;background:linear-gradient(90deg,rgba(255,95,141,.55),rgba(154,123,255,.35));animation:gw .7s both}
+.br span,.br em{position:relative;font-size:12px;font-style:normal;padding:0 10px}
+.br em{margin-left:auto;opacity:.7}
+.rc{cursor:pointer;display:flex;gap:12px;align-items:center}
+.rc .d{width:10px;height:10px;border-radius:50%;flex:none}
+.rc .i{flex:1;min-width:0}.rc .i div{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc .i small{font-size:11px;opacity:.55}
+.pill{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(255,255,255,.1);flex:none}
+.inp,.inp-s{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;font-size:15px;outline:none;-webkit-user-select:text;user-select:text;margin-bottom:10px}
+textarea.inp{min-height:70px;resize:vertical}
+label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;display:block;margin:2px 0 5px}
+.btn{border:0;border-radius:16px;padding:12px 18px;background:rgba(255,255,255,.12);font-size:14px;cursor:pointer}
+.btn.p{background:var(--g);color:#111;font-weight:600}
+.btn.r{background:rgba(255,95,109,.25);color:#ffb3ba}
+.md{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;animation:fi .25s}
+.sh{width:100%;max-width:560px;max-height:92%;overflow-y:auto;border-radius:28px 28px 0 0;margin:0;padding:20px 18px calc(24px + var(--sab));background:rgba(18,20,26,.92);animation:up .35s}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;background:rgba(0,0,0,.4);border-radius:16px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;border:0;background:none;border-radius:12px;padding:10px;font-size:14px}
+.seg button.on{background:var(--g);color:#111;font-weight:600}
+.th{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.th img{width:64px;height:64px;object-fit:cover;border-radius:12px}
+.gg{display:grid;gap:6px}
+.gg div{aspect-ratio:1;border-radius:12px;background-size:cover;background-position:center;position:relative;cursor:pointer}
+.gg div s{position:absolute;right:5px;top:3px;text-decoration:none;color:#ffd24a;text-shadow:0 1px 3px #000}
+.fl{display:flex;gap:10px;font-size:13px;margin:6px 0}.fl span{opacity:.5;width:92px;flex:none}.fl p{flex:1;white-space:pre-wrap}
+input[type=range]{width:100%;accent-color:#ff7aa2}
+.hid{display:none!important}
+@keyframes up{from{opacity:0;transform:translateY(16px)}}
+@keyframes fi{from{opacity:0}}
+@keyframes gr{from{transform:scaleY(0)}}
+@keyframes gw{from{width:0!important}}
