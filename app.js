@@ -104,6 +104,7 @@ function set(){const C=cfg();
  V.innerHTML=`<div class="gl"><h3>Respaldo</h3><div class="row"><button class="btn p" id="bk">Respaldar todo (.rqb)</button><label class="btn" style="margin:0;opacity:1;letter-spacing:0;text-transform:none;font-size:14px">Restaurar todo<input type="file" id="rt" hidden></label></div><p class="mu">Los datos viven solo en este navegador. Respalda con frecuencia.</p></div>
  <div class="gl"><h3>Fondo de pantalla</h3><div class="row"><label class="btn" style="margin:0;opacity:1;letter-spacing:0;text-transform:none;font-size:14px">Elegir imagen o video<input type="file" id="bf" accept="image/*,video/*" hidden></label><button class="btn r" id="bx">Quitar</button></div><label>Oscurecer fondo</label><input type="range" id="dm" min="0" max="0.95" step="0.01" value="${C.dim}"></div>
  <div class="gl"><h3>Catálogos</h3><label>Zonas (una por línea)</label><textarea class="inp" id="cz" style="min-height:100px">${E(C.zonas.join('\n'))}</textarea><label>Equipos (uno por línea)</label><textarea class="inp" id="ce" style="min-height:100px">${E(C.equipos.join('\n'))}</textarea><button class="btn p" id="cs">Guardar catálogos</button></div>`;
+ window.RSSCloud?.mount();
  $('#dm').oninput=e=>{cfg().dim=+e.target.value;$('#dim').style.opacity=e.target.value};$('#dm').onchange=save;
  $('#bf').onchange=async e=>{const f=e.target.files[0];if(f){await put('bg',{type:f.type,blob:f});bgApply()}};
  $('#bx').onclick=async()=>{await del('bg');bgApply()};
