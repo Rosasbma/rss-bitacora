@@ -12,6 +12,7 @@
  const all=async()=>{const d=await openDB();return new Promise((ok,err)=>{const o={},c=d.transaction(STORE).objectStore(STORE).openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)};c.onerror=()=>err(c.error)})};
  const put=async(k,v)=>{const d=await openDB();return new Promise((ok,err)=>{const t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(v,k);t.oncomplete=ok;t.onerror=()=>err(t.error)})};
  const blobFromDataURL=async u=>await (await fetch(u)).blob();
+ const dataURLFromBlob=b=>new Promise((ok,err)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>err(r.error);r.readAsDataURL(b)});
  const say=(s,bad=false)=>{const n=$('#cloud-status');if(n){n.textContent=s;n.style.color=bad?'#ff9ca6':''}};
  const init=async()=>{
   const c=cfg(); if(!c.url||!c.key||!window.supabase)return;
@@ -78,7 +79,11 @@
    if(readErr)throw Error('Lectura de nube: '+readErr.message);
    let downloaded=0;
    for(const row of (remote||[])){const key='r:'+row.id;if(!local[key]){await put(key,row.payload);downloaded++}}
-   say('Sincronización terminada. '+records.length+' registros enviados; '+uploaded+' fotos enviadas; '+downloaded+' registros nuevos descargados. Los datos locales se conservaron.');
+   const {data:evRows,error:evReadErr}=await client.from('evidence').select('id,record_id,object_path,metadata').eq('workspace_id',workspaceId);
+   if(evReadErr)throw Error('Lectura de evidencias: '+evReadErr.message);
+   let photoDownloads=0;
+   for(const ev of (evRows||[])){const key='p:'+ev.id;if(local[key])continue;const {data:file,error:fileErr}=await client.storage.from('rss-evidence').download(ev.object_path);if(fileErr)throw Error('Descarga de evidencia '+ev.id+': '+fileErr.message);const meta=ev.metadata||{};await put(key,{id:String(ev.id),rid:ev.record_id||'',src:await dataURLFromBlob(file),title:meta.title||'',desc:meta.desc||'',tags:meta.tags||[],album:meta.album||'',fav:meta.fav||0,ts:meta.ts||Date.now()});photoDownloads++}
+   say('Sincronización terminada. '+records.length+' registros enviados; '+uploaded+' fotos enviadas; '+downloaded+' registros nuevos descargados; '+photoDownloads+' fotos nuevas descargadas. Los datos locales se conservaron.');
   }catch(e){say(e.message||String(e),true)}finally{busy=false}
  };
  const mount=()=>{
