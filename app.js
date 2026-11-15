@@ -3,9 +3,13 @@ const $=s=>document.querySelector(s),V=$('#v'),E=s=>String(s??'').replace(/[&<>"
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fm=m=>m>=60?Math.floor(m/60)+'h '+m%60+'m':(m||0)+'m';
 const DBP=new Promise(r=>{const q=indexedDB.open('rqb',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>r(q.result)});
+const ACTIVE_WORKSPACE_KEY='rss_active_workspace_v1';
+let ACTIVE_WORKSPACE=localStorage.getItem(ACTIVE_WORKSPACE_KEY)||'';
+const physicalKey=k=>(/^[rp]:/.test(k)&&ACTIVE_WORKSPACE)?('w:'+ACTIVE_WORKSPACE+':'+k):k;
 const tx=async(m,f)=>{const d=await DBP;return new Promise((ok,er)=>{const t=d.transaction('kv',m),r=f(t.objectStore('kv'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>er(t.error)})};
-const put=(k,v)=>(S[k]=v,tx('readwrite',s=>s.put(v,k))),del=k=>(delete S[k],tx('readwrite',s=>s.delete(k)));
-const all=async()=>{const d=await DBP;return new Promise(ok=>{const o={},c=d.transaction('kv').objectStore('kv').openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)}})};
+const put=(k,v)=>(S[k]=v,tx('readwrite',s=>s.put(v,physicalKey(k)))),del=k=>(delete S[k],tx('readwrite',s=>s.delete(physicalKey(k))));
+const allRaw=async()=>{const d=await DBP;return new Promise(ok=>{const o={},c=d.transaction('kv').objectStore('kv').openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)}})};
+const all=async()=>{const raw=await allRaw(),o={},prefix=ACTIVE_WORKSPACE?'w:'+ACTIVE_WORKSPACE+':':'';for(const k in raw){if(k.startsWith('w:')){if(prefix&&k.startsWith(prefix))o[k.slice(prefix.length)]=raw[k]}else if(/^[rp]:/.test(k)){if(!ACTIVE_WORKSPACE)o[k]=raw[k]}else o[k]=raw[k]}return o};
 const b2d=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
 const rs=f=>new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8))};i.src=URL.createObjectURL(f)});
 const dim=u=>new Promise(r=>{const i=new Image();i.onload=()=>r([i.width,i.height]);i.src=u});
@@ -48,7 +52,7 @@ function log(){
  V.querySelectorAll('[data-s]').forEach(e=>e.onclick=()=>{F.sort=e.dataset.s;log()});
  V.querySelectorAll('[data-x]').forEach(e=>e.onclick=()=>{F[e.dataset.x]='';log()});
  V.querySelectorAll('.rc').forEach(e=>e.onclick=()=>detail(e.dataset.id));
- $('#pp').onclick=()=>modal(`<h3>PDF de un periodo</h3><div class="two"><div><label>Desde</label><input class="inp" type="date" id="d1" value="${today().slice(0,8)}01"></div><div><label>Hasta</label><input class="inp" type="date" id="d2" value="${today()}"></div></div><label>Incluir</label><select class="inp" id="dt"><option value="">Fallas y actividades</option><option value="f">Solo fallas</option><option value="a">Solo actividades</option></select><button class="btn p" id="go" style="width:100%">Generar PDF</button>`,m=>m.querySelector('#go').onclick=async()=>{const a=new Date($('#d1').value+'T00:00').getTime(),b=new Date($('#d2').value+'T23:59').getTime(),t=$('#dt').value,L=recs().filter(r=>r.ts>=a&&r.ts<=b&&(!t||r.t==t)).sort((x,y)=>x.ts-y.ts);if(!L.length)return alert('No hay registros en ese periodo');m.remove();pdf(L,`Reporte ${$('#d1').value} al ${$('#d2').value}`)})
+ $('#pp').onclick=()=>modal(`<h3>PDF de un periodo</h3><div class="two"><div><label>Desde</label><input class="inp" type="date" id="d1" value="${today().slice(0,8)}01"></div><div><label>Hasta</label><input class="inp" type="date" id="d2" value="${today()}"></div></div><label>Incluir</label><select class="inp" id="dt"><option value="">Fallas y actividades</option><option value="f">Solo fallas</option><option value="a">Solo actividades</option></select><button class="btn p" id="go" style="width:100%">Generar PDF</button>`,m=>m.querySelector('#go').onclick=async()=>{const desde=$('#d1').value,hasta=$('#d2').value,t=$('#dt').value;if(!desde||!hasta)return alert('Selecciona las dos fechas del periodo');if(desde>hasta)return alert('La fecha inicial no puede ser posterior a la fecha final');const L=recs().filter(r=>{const fecha=String(r.fecha||'').slice(0,10);return fecha>=desde&&fecha<=hasta&&(!t||r.t==t)}).sort((x,y)=>String(x.fecha||'').localeCompare(String(y.fecha||''))||String(x.hora||'').localeCompare(String(y.hora||'')));if(!L.length)return alert('No hay registros en ese periodo');m.remove();pdf(L,`Reporte ${desde} al ${hasta}`).catch(e=>{console.error('Error al generar PDF por periodo',e);alert('No se pudo generar el PDF. Revisa la conexión y vuelve a intentarlo.')})})
 }
 function detail(id){
  const r=S['r:'+id],ph=pics().filter(p=>p.rid==id),row=(l,v)=>v?`<div class="fl"><span>${l}</span><p>${E(v)}</p></div>`:'';
@@ -109,7 +113,7 @@ function set(){const C=cfg();
  $('#bf').onchange=async e=>{const f=e.target.files[0];if(f){await put('bg',{type:f.type,blob:f});bgApply()}};
  $('#bx').onclick=async()=>{await del('bg');bgApply()};
  $('#cs').onclick=async()=>{const l=i=>[...new Set($(i).value.split('\n').map(x=>x.trim()).filter(Boolean))];C.zonas=l('#cz');C.equipos=l('#ce');await save();alert('Catálogos guardados')};
- $('#bk').onclick=async()=>{const o={v:1,d:{}};for(const k in S)o.d[k]=k=='bg'?{type:S.bg.type,data:await b2d(S.bg.blob)}:S[k];const n=`RSS-Bitacora-${today()}.rqb`,f=new File([JSON.stringify(o)],n,{type:'application/octet-stream'});
+ $('#bk').onclick=async()=>{const o={v:1,d:{}},raw=await allRaw();for(const k in raw)o.d[k]=k=='bg'?{type:raw.bg.type,data:await b2d(raw.bg.blob)}:raw[k];const n=`RSS-Bitacora-${today()}.rqb`,f=new File([JSON.stringify(o)],n,{type:'application/octet-stream'});
   if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f]});return}catch(e){if(e.name=='AbortError')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=n;a.click()};
  $('#rt').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const o=JSON.parse(await f.text());if(!o.d)throw 0;if(!confirm('Esto reemplazará TODOS los datos actuales. ¿Continuar?'))return;await tx('readwrite',s=>s.clear());for(const k in o.d){let v=o.d[k];if(k=='bg')v={type:v.type,blob:await (await fetch(v.data)).blob()};await tx('readwrite',s=>s.put(v,k))}location.reload()}catch(x){alert('Archivo .rqb no válido')}};
