@@ -88,7 +88,7 @@
      continue;
     }
     const row={id,workspace_id:workspaceId,created_by:session.user.id,payload:r,updated_at:new Date().toISOString(),created_at:new Date(r.ts||Date.now()).toISOString()};
-    const {error}=await client.from('maintenance_records').upsert(row,{onConflict:'workspace_id,id'});
+    const {error}=await client.from('maintenance_records').insert(row);
     if(error)throw Error('Registro '+id+': '+error.message);
     sent++;
    }
