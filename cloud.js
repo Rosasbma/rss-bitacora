@@ -47,9 +47,9 @@
   if(!session)return say('Inicia sesión primero.',true);
   const {data,error}=await client.from('workspace_members').select('workspace_id,role,workspaces(id,name,created_at)').eq('user_id',session.user.id);
   if(error)return say('No se pudieron consultar espacios: '+error.message,true);
-  const sel=$('#cloud-workspace');sel.innerHTML='';
+  const sel=$('#cloud-workspace');sel.innerHTML='';const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Selecciona un espacio…';sel.append(placeholder);
   (data||[]).sort((a,b)=>new Date(a.workspaces?.created_at||0)-new Date(b.workspaces?.created_at||0)).forEach(m=>{const o=document.createElement('option');o.value=m.workspace_id;o.textContent=(m.workspaces?.name||m.workspace_id)+' · '+m.role;sel.append(o)});
-  const active=localStorage.getItem(ACTIVE_KEY)||'';if(active&&[...sel.options].some(o=>o.value===active))sel.value=active;workspaceId=sel.value||null;say(data?.length?'Espacios cargados. Selecciona el espacio que utilizará este dispositivo.':'No tienes espacios. Crea uno para iniciar.');
+  const active=localStorage.getItem(ACTIVE_KEY)||'';if(active&&[...sel.options].some(o=>o.value===active))sel.value=active;else sel.value='';workspaceId=sel.value||null;say(data?.length?'Espacios cargados. Selecciona el espacio que utilizará este dispositivo.':'No tienes espacios. Crea uno para iniciar.');
  };
  const createWorkspace=async()=>{
   if(!client)return say('Configura Supabase primero.',true);
