@@ -51,10 +51,14 @@
   workspaceId=sel.value||null;say(data?.length?'Espacios cargados.':'No tienes espacios. Crea uno para iniciar.');
  };
  const createWorkspace=async()=>{
-  if(!session)return say('Inicia sesión primero.',true);
+  if(!client)return say('Configura Supabase primero.',true);
   const name=$('#cloud-new-workspace')?.value.trim();if(!name)return say('Escribe el nombre del espacio.',true);
-  const {error}=await client.from('workspaces').insert({name,created_by:session.user.id});
-  if(error)return say('No se pudo crear el espacio: '+error.message,true);
+  const {data:authData,error:authError}=await client.auth.getUser();
+  if(authError||!authData?.user)return say('Supabase no valida una sesión autenticada. Cierra sesión e inicia nuevamente.',true);
+  const userId=authData.user.id;
+  if(session?.user?.id&&session.user.id!==userId)return say('La sesión local y la sesión validada no coinciden. Cierra sesión e inicia nuevamente.',true);
+  const {error}=await client.from('workspaces').insert({name,created_by:userId});
+  if(error)return say('No se pudo crear el espacio. Usuario validado: '+userId+'. Error: '+error.message,true);
   await listWorkspaces();
   const sel=$('#cloud-workspace');
   const matches=[...sel.options].filter(o=>o.textContent.startsWith(name+' · admin'));
