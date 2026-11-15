@@ -63,3 +63,27 @@ input[type=range]{width:100%;accent-color:#ff7aa2}
 @keyframes fi{from{opacity:0}}
 @keyframes gr{from{transform:scaleY(0)}}
 @keyframes gw{from{width:0!important}}
+
+
+/* ===== Corrección de campos fecha/hora en móviles ===== */
+.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+.two>div{min-width:0;}
+.two .inp{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;}
+.two input[type="date"],
+.two input[type="time"]{
+  -webkit-appearance:none;
+  appearance:none;
+  min-width:0;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  padding:12px 7px;
+  font-size:clamp(12px,3.5vw,14px);
+  text-align:center;
+  white-space:nowrap;
+}
+@media(max-width:380px){
+  .two{gap:7px;}
+  .two input[type="date"],
+  .two input[type="time"]{font-size:12px;padding-left:4px;padding-right:4px;}
+}

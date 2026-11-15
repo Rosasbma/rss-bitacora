@@ -76,26 +76,55 @@
    workspaceId=$('#cloud-workspace')?.value||workspaceId;if(!workspaceId)throw Error('Selecciona o crea un espacio de trabajo.');
    const local=await all(),records=Object.keys(local).filter(k=>k.startsWith('r:')).map(k=>local[k]);
    const photos=Object.keys(local).filter(k=>k.startsWith('p:')).map(k=>local[k]);
-   const payload=records.map(r=>({id:String(r.id),workspace_id:workspaceId,created_by:session.user.id,payload:r,updated_at:new Date().toISOString(),created_at:new Date(r.ts||Date.now()).toISOString()}));
-   if(payload.length){const {error}=await client.from('maintenance_records').upsert(payload,{onConflict:'workspace_id,id'});if(error)throw Error('Registros: '+error.message)}
-   let uploaded=0;
-   for(const p of photos){
-    const path=workspaceId+'/'+session.user.id+'/'+String(p.id)+'.jpg';
-    const blob=await blobFromDataURL(p.src);
-    const {error:upErr}=await client.storage.from('rss-evidence').upload(path,blob,{contentType:'image/jpeg',upsert:true});
-    if(upErr)throw Error('Foto '+p.id+': '+upErr.message);
-    const {error:evErr}=await client.from('evidence').upsert({id:String(p.id),workspace_id:workspaceId,created_by:session.user.id,record_id:p.rid?String(p.rid):null,object_path:path,metadata:{title:p.title||'',desc:p.desc||'',tags:p.tags||[],album:p.album||'',fav:p.fav||0,ts:p.ts||Date.now()}},{onConflict:'workspace_id,id'});
-    if(evErr)throw Error('Índice de foto '+p.id+': '+evErr.message);uploaded++;
-   }
+   const stable=v=>JSON.stringify(v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v).sort().reduce((o,k)=>(o[k]=v[k],o),{}):v);
    const {data:remote,error:readErr}=await client.from('maintenance_records').select('id,payload').eq('workspace_id',workspaceId);
-   if(readErr)throw Error('Lectura de nube: '+readErr.message);
-   let downloaded=0;
-   for(const row of (remote||[])){const key='r:'+row.id;if(!local[key]){await put(key,row.payload);downloaded++}}
+   if(readErr)throw Error('Lectura de registros en nube: '+readErr.message);
+   const remoteById=new Map((remote||[]).map(x=>[String(x.id),x]));
+   let sent=0,downloaded=0,conflicts=0;
+   for(const r of records){
+    const id=String(r.id),existing=remoteById.get(id);
+    if(existing){
+     if(stable(existing.payload)!==stable(r))conflicts++;
+     continue;
+    }
+    const row={id,workspace_id:workspaceId,created_by:session.user.id,payload:r,updated_at:new Date().toISOString(),created_at:new Date(r.ts||Date.now()).toISOString()};
+    const {error}=await client.from('maintenance_records').upsert(row,{onConflict:'workspace_id,id'});
+    if(error)throw Error('Registro '+id+': '+error.message);
+    sent++;
+   }
+   for(const row of (remote||[])){
+    const key='r:'+row.id;
+    if(!local[key]){await put(key,row.payload);downloaded++}
+   }
    const {data:evRows,error:evReadErr}=await client.from('evidence').select('id,record_id,object_path,metadata').eq('workspace_id',workspaceId);
    if(evReadErr)throw Error('Lectura de evidencias: '+evReadErr.message);
-   let photoDownloads=0;
-   for(const ev of (evRows||[])){const key='p:'+ev.id;if(local[key])continue;const {data:file,error:fileErr}=await client.storage.from('rss-evidence').download(ev.object_path);if(fileErr)throw Error('Descarga de evidencia '+ev.id+': '+fileErr.message);const meta=ev.metadata||{};await put(key,{id:String(ev.id),rid:ev.record_id||'',src:await dataURLFromBlob(file),title:meta.title||'',desc:meta.desc||'',tags:meta.tags||[],album:meta.album||'',fav:meta.fav||0,ts:meta.ts||Date.now()});photoDownloads++}
-   say('Sincronización terminada. '+records.length+' registros enviados; '+uploaded+' fotos enviadas; '+downloaded+' registros nuevos descargados; '+photoDownloads+' fotos nuevas descargadas. Los datos locales se conservaron.');
+   const evidenceById=new Map((evRows||[]).map(x=>[String(x.id),x]));
+   let uploaded=0,photoDownloads=0;
+   for(const p of photos){
+    const id=String(p.id),existing=evidenceById.get(id);
+    if(existing){
+     const meta=existing.metadata||{};
+     const same=String(existing.record_id||'')===String(p.rid||'')&&stable({title:meta.title||'',desc:meta.desc||'',tags:meta.tags||[],album:meta.album||'',fav:meta.fav||0,ts:meta.ts||0})===stable({title:p.title||'',desc:p.desc||'',tags:p.tags||[],album:p.album||'',fav:p.fav||0,ts:p.ts||0});
+     if(!same)conflicts++;
+     continue;
+    }
+    const path=workspaceId+'/'+session.user.id+'/'+id+'.jpg';
+    const blob=await blobFromDataURL(p.src);
+    const {error:upErr}=await client.storage.from('rss-evidence').upload(path,blob,{contentType:'image/jpeg',upsert:false});
+    if(upErr)throw Error('Foto '+id+': '+upErr.message);
+    const {error:evErr}=await client.from('evidence').insert({id,workspace_id:workspaceId,created_by:session.user.id,record_id:p.rid?String(p.rid):null,object_path:path,metadata:{title:p.title||'',desc:p.desc||'',tags:p.tags||[],album:p.album||'',fav:p.fav||0,ts:p.ts||Date.now()}});
+    if(evErr)throw Error('Índice de foto '+id+': '+evErr.message);
+    uploaded++;
+   }
+   for(const ev of (evRows||[])){
+    const key='p:'+ev.id;if(local[key])continue;
+    const {data:file,error:fileErr}=await client.storage.from('rss-evidence').download(ev.object_path);
+    if(fileErr)throw Error('Descarga de evidencia '+ev.id+': '+fileErr.message);
+    const meta=ev.metadata||{};
+    await put(key,{id:String(ev.id),rid:ev.record_id||'',src:await dataURLFromBlob(file),title:meta.title||'',desc:meta.desc||'',tags:meta.tags||[],album:meta.album||'',fav:meta.fav||0,ts:meta.ts||Date.now()});
+    photoDownloads++;
+   }
+   say('Sincronización terminada. '+sent+' registros nuevos enviados; '+uploaded+' fotos nuevas enviadas; '+downloaded+' registros descargados; '+photoDownloads+' fotos descargadas; '+conflicts+' conflictos detectados. Los conflictos no se sobrescribieron y los datos locales se conservaron.');
   }catch(e){say(e.message||String(e),true)}finally{busy=false}
  };
  const mount=()=>{
