@@ -1,4 +1,4 @@
-const CACHE='rss-bitacora-v5';
+const CACHE='rss-bitacora-v6';
 const CORE=['./','./index.html','./app.css','./app.js','./cloud.js','./manifest.json','./logo.jpg','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{
