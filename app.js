@@ -139,5 +139,15 @@ function render(){$('#ttl').textContent=T[tab][0];document.querySelectorAll('nav
 function go(t){tab=t;render()}
 document.querySelectorAll('nav [data-t]').forEach(b=>b.onclick=()=>go(b.dataset.t));$('#nw').onclick=()=>form();
 all().then(o=>{S=o;S.cfg=Object.assign({zonas:[],equipos:[],dim:.45,cols:3},S.cfg);bgApply();render()});
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker'in navigator){
+ navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+  const check=()=>reg.update().catch(()=>{});
+  check();
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check()});
+  let reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+   if(reloading)return;reloading=true;location.reload();
+  });
+ }).catch(()=>{});
+}
 })();
