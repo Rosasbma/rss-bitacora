@@ -3,9 +3,13 @@ const $=s=>document.querySelector(s),V=$('#v'),E=s=>String(s??'').replace(/[&<>"
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fm=m=>m>=60?Math.floor(m/60)+'h '+m%60+'m':(m||0)+'m';
 const DBP=new Promise(r=>{const q=indexedDB.open('rqb',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>r(q.result)});
+const ACTIVE_WORKSPACE_KEY='rss_active_workspace_v1';
+let ACTIVE_WORKSPACE=localStorage.getItem(ACTIVE_WORKSPACE_KEY)||'';
+const physicalKey=k=>(/^[rp]:/.test(k)&&ACTIVE_WORKSPACE)?('w:'+ACTIVE_WORKSPACE+':'+k):k;
 const tx=async(m,f)=>{const d=await DBP;return new Promise((ok,er)=>{const t=d.transaction('kv',m),r=f(t.objectStore('kv'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>er(t.error)})};
-const put=(k,v)=>(S[k]=v,tx('readwrite',s=>s.put(v,k))),del=k=>(delete S[k],tx('readwrite',s=>s.delete(k)));
-const all=async()=>{const d=await DBP;return new Promise(ok=>{const o={},c=d.transaction('kv').objectStore('kv').openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)}})};
+const put=(k,v)=>(S[k]=v,tx('readwrite',s=>s.put(v,physicalKey(k)))),del=k=>(delete S[k],tx('readwrite',s=>s.delete(physicalKey(k))));
+const allRaw=async()=>{const d=await DBP;return new Promise(ok=>{const o={},c=d.transaction('kv').objectStore('kv').openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)}})};
+const all=async()=>{const raw=await allRaw(),o={},prefix=ACTIVE_WORKSPACE?'w:'+ACTIVE_WORKSPACE+':':'';for(const k in raw){if(k.startsWith('w:')){if(prefix&&k.startsWith(prefix))o[k.slice(prefix.length)]=raw[k]}else if(/^[rp]:/.test(k)){if(!ACTIVE_WORKSPACE)o[k]=raw[k]}else o[k]=raw[k]}return o};
 const b2d=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)});
 const rs=f=>new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8))};i.src=URL.createObjectURL(f)});
 const dim=u=>new Promise(r=>{const i=new Image();i.onload=()=>r([i.width,i.height]);i.src=u});
@@ -109,7 +113,7 @@ function set(){const C=cfg();
  $('#bf').onchange=async e=>{const f=e.target.files[0];if(f){await put('bg',{type:f.type,blob:f});bgApply()}};
  $('#bx').onclick=async()=>{await del('bg');bgApply()};
  $('#cs').onclick=async()=>{const l=i=>[...new Set($(i).value.split('\n').map(x=>x.trim()).filter(Boolean))];C.zonas=l('#cz');C.equipos=l('#ce');await save();alert('Catálogos guardados')};
- $('#bk').onclick=async()=>{const o={v:1,d:{}};for(const k in S)o.d[k]=k=='bg'?{type:S.bg.type,data:await b2d(S.bg.blob)}:S[k];const n=`RSS-Bitacora-${today()}.rqb`,f=new File([JSON.stringify(o)],n,{type:'application/octet-stream'});
+ $('#bk').onclick=async()=>{const o={v:1,d:{}},raw=await allRaw();for(const k in raw)o.d[k]=k=='bg'?{type:raw.bg.type,data:await b2d(raw.bg.blob)}:raw[k];const n=`RSS-Bitacora-${today()}.rqb`,f=new File([JSON.stringify(o)],n,{type:'application/octet-stream'});
   if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f]});return}catch(e){if(e.name=='AbortError')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=n;a.click()};
  $('#rt').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const o=JSON.parse(await f.text());if(!o.d)throw 0;if(!confirm('Esto reemplazará TODOS los datos actuales. ¿Continuar?'))return;await tx('readwrite',s=>s.clear());for(const k in o.d){let v=o.d[k];if(k=='bg')v={type:v.type,blob:await (await fetch(v.data)).blob()};await tx('readwrite',s=>s.put(v,k))}location.reload()}catch(x){alert('Archivo .rqb no válido')}};
