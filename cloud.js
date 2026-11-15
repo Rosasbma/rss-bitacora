@@ -44,15 +44,19 @@
  const signOut=async()=>{if(client){const {error}=await client.auth.signOut();if(error)say(error.message,true);else{workspaceId=null;say('Sesión cerrada.')}}};
  const listWorkspaces=async()=>{
   if(!session)return say('Inicia sesión primero.',true);
-  const {data,error}=await client.from('workspace_members').select('workspace_id,role,workspaces(id,name)').eq('user_id',session.user.id);
+  const {data,error}=await client.from('workspace_members').select('workspace_id,role,workspaces(id,name,created_at)').eq('user_id',session.user.id);
   if(error)return say('No se pudieron consultar espacios: '+error.message,true);
   const sel=$('#cloud-workspace');sel.innerHTML='';
-  (data||[]).forEach(m=>{const o=document.createElement('option');o.value=m.workspace_id;o.textContent=(m.workspaces?.name||m.workspace_id)+' · '+m.role;sel.append(o)});
+  (data||[]).sort((a,b)=>new Date(a.workspaces?.created_at||0)-new Date(b.workspaces?.created_at||0)).forEach(m=>{const o=document.createElement('option');o.value=m.workspace_id;o.textContent=(m.workspaces?.name||m.workspace_id)+' · '+m.role;sel.append(o)});
   workspaceId=sel.value||null;say(data?.length?'Espacios cargados.':'No tienes espacios. Crea uno para iniciar.');
  };
  const createWorkspace=async()=>{
   if(!client)return say('Configura Supabase primero.',true);
   const name=$('#cloud-new-workspace')?.value.trim();if(!name)return say('Escribe el nombre del espacio.',true);
+  await listWorkspaces();
+  const normalize=s=>String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleLowerCase();
+  const existing=[...($('#cloud-workspace')?.options||[])].find(o=>normalize(o.textContent.split(' · ')[0])===normalize(name));
+  if(existing){$('#cloud-workspace').value=existing.value;workspaceId=existing.value;return say('Ese espacio ya existe. Se seleccionó el existente; no se creó un duplicado.');}
   const {data:authData,error:authError}=await client.auth.getUser();
   if(authError||!authData?.user)return say('Supabase no valida una sesión autenticada. Cierra sesión e inicia nuevamente.',true);
   const userId=authData.user.id;
