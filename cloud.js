@@ -53,9 +53,13 @@
  const createWorkspace=async()=>{
   if(!session)return say('Inicia sesión primero.',true);
   const name=$('#cloud-new-workspace')?.value.trim();if(!name)return say('Escribe el nombre del espacio.',true);
-  const {data,error}=await client.from('workspaces').insert({name,created_by:session.user.id}).select('id').single();
+  const {error}=await client.from('workspaces').insert({name,created_by:session.user.id});
   if(error)return say('No se pudo crear el espacio: '+error.message,true);
-  await listWorkspaces();$('#cloud-workspace').value=data.id;workspaceId=data.id;say('Espacio creado. Tu usuario queda como administrador.');
+  await listWorkspaces();
+  const sel=$('#cloud-workspace');
+  const matches=[...sel.options].filter(o=>o.textContent.startsWith(name+' · admin'));
+  if(matches.length){sel.value=matches[matches.length-1].value;workspaceId=sel.value;say('Espacio creado. Tu usuario queda como administrador.');}
+  else say('El espacio se creó, pero no apareció en la lista. Pulsa Cargar espacios para actualizar.',true);
  };
  const sync=async()=>{
   if(busy)return;say('Sincronizando…');busy=true;
