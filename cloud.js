@@ -3,14 +3,15 @@
  * No local records/photos are deleted by this module.
  */
 (()=>{'use strict';
- const DB='rqb', STORE='kv', KEY='rss_cloud_config_v1';
+ const DB='rqb', STORE='kv', KEY='rss_cloud_config_v1', ACTIVE_KEY='rss_active_workspace_v1';
  let client=null, session=null, workspaceId=null, busy=false;
  const $=s=>document.querySelector(s);
  const cfg=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return {}}};
  const saveCfg=o=>localStorage.setItem(KEY,JSON.stringify(o));
  const openDB=()=>new Promise((ok,err)=>{const q=indexedDB.open(DB,1);q.onsuccess=()=>ok(q.result);q.onerror=()=>err(q.error)});
- const all=async()=>{const d=await openDB();return new Promise((ok,err)=>{const o={},c=d.transaction(STORE).objectStore(STORE).openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)};c.onerror=()=>err(c.error)})};
- const put=async(k,v)=>{const d=await openDB();return new Promise((ok,err)=>{const t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(v,k);t.oncomplete=ok;t.onerror=()=>err(t.error)})};
+ const allRaw=async()=>{const d=await openDB();return new Promise((ok,err)=>{const o={},c=d.transaction(STORE).objectStore(STORE).openCursor();c.onsuccess=()=>{const x=c.result;if(x){o[x.key]=x.value;x.continue()}else ok(o)};c.onerror=()=>err(c.error)})};
+ const all=async()=>{const raw=await allRaw(),o={},prefix='w:'+workspaceId+':';for(const k in raw)if(k.startsWith(prefix))o[k.slice(prefix.length)]=raw[k];return o};
+ const put=async(k,v)=>{const d=await openDB();return new Promise((ok,err)=>{const t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(v,'w:'+workspaceId+':'+k);t.oncomplete=ok;t.onerror=()=>err(t.error)})};
  const blobFromDataURL=async u=>await (await fetch(u)).blob();
  const dataURLFromBlob=b=>new Promise((ok,err)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>err(r.error);r.readAsDataURL(b)});
  const say=(s,bad=false)=>{const n=$('#cloud-status');if(n){n.textContent=s;n.style.color=bad?'#ff9ca6':''}};
@@ -48,7 +49,7 @@
   if(error)return say('No se pudieron consultar espacios: '+error.message,true);
   const sel=$('#cloud-workspace');sel.innerHTML='';
   (data||[]).sort((a,b)=>new Date(a.workspaces?.created_at||0)-new Date(b.workspaces?.created_at||0)).forEach(m=>{const o=document.createElement('option');o.value=m.workspace_id;o.textContent=(m.workspaces?.name||m.workspace_id)+' · '+m.role;sel.append(o)});
-  workspaceId=sel.value||null;say(data?.length?'Espacios cargados.':'No tienes espacios. Crea uno para iniciar.');
+  const active=localStorage.getItem(ACTIVE_KEY)||'';if(active&&[...sel.options].some(o=>o.value===active))sel.value=active;workspaceId=sel.value||null;say(data?.length?'Espacios cargados. Selecciona el espacio que utilizará este dispositivo.':'No tienes espacios. Crea uno para iniciar.');
  };
  const createWorkspace=async()=>{
   if(!client)return say('Configura Supabase primero.',true);
@@ -69,11 +70,14 @@
   if(matches.length){sel.value=matches[matches.length-1].value;workspaceId=sel.value;say('Espacio creado. Tu usuario queda como administrador.');}
   else say('El espacio se creó, pero no apareció en la lista. Pulsa Cargar espacios para actualizar.',true);
  };
+ const activateWorkspace=()=>{const sel=$('#cloud-workspace');if(!sel?.value)return say('Selecciona un espacio de trabajo.',true);const id=sel.value;if(localStorage.getItem(ACTIVE_KEY)===id)return;localStorage.setItem(ACTIVE_KEY,id);say('Espacio asignado a este dispositivo. Recargando para separar sus datos…');location.reload()};
+ const migrateLegacy=async()=>{if(!workspaceId)return say('Selecciona un espacio de trabajo primero.',true);const raw=await allRaw(),legacy=Object.keys(raw).filter(k=>/^[rp]:/.test(k)),prefix='w:'+workspaceId+':',existing=Object.keys(raw).filter(k=>k.startsWith(prefix));if(!legacy.length)return say('No hay datos locales antiguos para copiar.',true);if(existing.length)return say('El espacio seleccionado ya tiene datos locales. No se copió nada para evitar mezclar información.',true);if(!confirm('Se copiarán '+legacy.filter(k=>k.startsWith('r:')).length+' registros y '+legacy.filter(k=>k.startsWith('p:')).length+' fotos al espacio seleccionado. Los datos originales se conservarán intactos. ¿Continuar?'))return;for(const k of legacy)await put(k,raw[k]);say('Copia local terminada. Los originales se conservaron. Ya puedes sincronizar este espacio.')};
  const sync=async()=>{
   if(busy)return;say('Sincronizando…');busy=true;
   try{
    if(!session)throw Error('Inicia sesión primero.');
    workspaceId=$('#cloud-workspace')?.value||workspaceId;if(!workspaceId)throw Error('Selecciona o crea un espacio de trabajo.');
+   if(localStorage.getItem(ACTIVE_KEY)!==workspaceId)throw Error('Este dispositivo no está asignado al espacio seleccionado. Selecciónalo y espera a que se recargue la aplicación.');
    const local=await all(),records=Object.keys(local).filter(k=>k.startsWith('r:')).map(k=>local[k]);
    const photos=Object.keys(local).filter(k=>k.startsWith('p:')).map(k=>local[k]);
    const stable=v=>JSON.stringify(v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v).sort().reduce((o,k)=>(o[k]=v[k],o),{}):v);
@@ -129,11 +133,11 @@
  };
  const mount=()=>{
   const c=cfg();
-  const panel=document.createElement('div');panel.className='gl';panel.innerHTML='<h3>Sincronización en la nube · Supabase</h3><p class="mu" style="margin-bottom:10px">La bitácora local y sus respaldos se conservan. La sincronización no elimina registros locales.</p><label>URL del proyecto</label><input class="inp" id="cloud-url" placeholder="https://tu-proyecto.supabase.co"><label>Clave publishable / anon (nunca service_role)</label><input class="inp" id="cloud-key" type="password" autocomplete="off" placeholder="sb_publishable_… o anon key"><button class="btn" id="cloud-connect" style="width:100%;margin-bottom:10px">Guardar conexión</button><div id="cloud-account" class="mu">Sin sesión iniciada</div><label>Correo</label><input class="inp" id="cloud-email" type="email" autocomplete="username"><label>Contraseña</label><input class="inp" id="cloud-password" type="password" autocomplete="current-password"><div class="row"><button class="btn p" id="cloud-login">Iniciar sesión</button><button class="btn" id="cloud-signup">Crear usuario</button><button class="btn" id="cloud-logout">Cerrar sesión</button></div><div class="row"><button class="btn" id="cloud-list">Cargar espacios</button><select class="inp" id="cloud-workspace" style="flex:1;min-width:150px;margin:0"></select></div><label>Crear espacio de trabajo</label><input class="inp" id="cloud-new-workspace" placeholder="RSS Bitácora"><button class="btn" id="cloud-create" style="width:100%;margin-bottom:10px">Crear espacio</button><button class="btn p" id="cloud-sync" style="width:100%">Sincronizar registros y evidencias</button><p id="cloud-status" class="mu" style="margin-top:10px">Configura Supabase para comenzar.</p>';
+  const panel=document.createElement('div');panel.className='gl';panel.innerHTML='<h3>Sincronización en la nube · Supabase</h3><p class="mu" style="margin-bottom:10px">La bitácora local y sus respaldos se conservan. La sincronización no elimina registros locales.</p><label>URL del proyecto</label><input class="inp" id="cloud-url" placeholder="https://tu-proyecto.supabase.co"><label>Clave publishable / anon (nunca service_role)</label><input class="inp" id="cloud-key" type="password" autocomplete="off" placeholder="sb_publishable_… o anon key"><button class="btn" id="cloud-connect" style="width:100%;margin-bottom:10px">Guardar conexión</button><div id="cloud-account" class="mu">Sin sesión iniciada</div><label>Correo</label><input class="inp" id="cloud-email" type="email" autocomplete="username"><label>Contraseña</label><input class="inp" id="cloud-password" type="password" autocomplete="current-password"><div class="row"><button class="btn p" id="cloud-login">Iniciar sesión</button><button class="btn" id="cloud-signup">Crear usuario</button><button class="btn" id="cloud-logout">Cerrar sesión</button></div><div class="row"><button class="btn" id="cloud-list">Cargar espacios</button><select class="inp" id="cloud-workspace" style="flex:1;min-width:150px;margin:0"></select><button class="btn" id="cloud-activate">Usar en este dispositivo</button></div><button class="btn" id="cloud-migrate" style="width:100%;margin-bottom:10px">Copiar datos locales antiguos a este espacio</button><label>Crear espacio de trabajo</label><input class="inp" id="cloud-new-workspace" placeholder="RSS Bitácora"><button class="btn" id="cloud-create" style="width:100%;margin-bottom:10px">Crear espacio</button><button class="btn p" id="cloud-sync" style="width:100%">Sincronizar registros y evidencias</button><p id="cloud-status" class="mu" style="margin-top:10px">Configura Supabase para comenzar.</p>';
   const v=$('#v');if(v&&!$('#cloud-panel')){panel.id='cloud-panel';v.append(panel)}
   $('#cloud-url').value=c.url||'';
   $('#cloud-key').value=c.key||'';
-  $('#cloud-connect').onclick=connect;$('#cloud-login').onclick=signIn;$('#cloud-signup').onclick=signUp;$('#cloud-logout').onclick=signOut;$('#cloud-list').onclick=listWorkspaces;$('#cloud-create').onclick=createWorkspace;$('#cloud-sync').onclick=sync;
+  $('#cloud-connect').onclick=connect;$('#cloud-workspace').onchange=()=>{workspaceId=$('#cloud-workspace').value||null};$('#cloud-activate').onclick=activateWorkspace;$('#cloud-migrate').onclick=migrateLegacy;$('#cloud-login').onclick=signIn;$('#cloud-signup').onclick=signUp;$('#cloud-logout').onclick=signOut;$('#cloud-list').onclick=listWorkspaces;$('#cloud-create').onclick=createWorkspace;$('#cloud-sync').onclick=sync;
   renderState();if(client)listWorkspaces();
  };
  window.RSSCloud={mount,init};
