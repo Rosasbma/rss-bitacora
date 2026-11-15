@@ -54,7 +54,7 @@
   if(!client)return say('Configura Supabase primero.',true);
   const name=$('#cloud-new-workspace')?.value.trim();if(!name)return say('Escribe el nombre del espacio.',true);
   await listWorkspaces();
-  const normalize=s=>String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleLowerCase();
+  const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLocaleLowerCase();
   const existing=[...($('#cloud-workspace')?.options||[])].find(o=>normalize(o.textContent.split(' · ')[0])===normalize(name));
   if(existing){$('#cloud-workspace').value=existing.value;workspaceId=existing.value;return say('Ese espacio ya existe. Se seleccionó el existente; no se creó un duplicado.');}
   const {data:authData,error:authError}=await client.auth.getUser();
